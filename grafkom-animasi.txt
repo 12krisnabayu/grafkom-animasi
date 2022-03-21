@@ -4037,7 +4037,7 @@ void userdraw() {
 		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 		glutInitWindowPosition(100, 100);
 		glutInitWindowSize(1080, 600); 
-		glutCreateWindow("UAS-17051204044");
+		glutCreateWindow("UAS-Bayu");
 		glClearColor(0.6, 0.8, 1.0, 0);  
 		gluOrtho2D(-373, 501, -248, 230); 
 		glutIdleFunc(display);
