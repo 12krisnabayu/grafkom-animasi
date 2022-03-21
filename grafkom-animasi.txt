@@ -1,0 +1,4047 @@
+Kode Program :
+ 
+#include <stdlib.h> 
+#include <GL/glut.h> 
+#include <math.h> 
+#include <time.h> 
+#include <stdio.h> 
+#include <string.h> 
+
+typedef struct { 
+	float x;  
+	float y; 
+}point2D_t;
+
+typedef struct { 
+	float v[3]; 
+}vector2D_t;
+
+typedef struct { 
+	float m[3][3]; 
+} matrix2D_t;
+
+typedef struct { 
+	float r, g, b; 
+} color_t;
+
+
+point2D_t Vector2Point1(vector2D_t vec) { 
+	point2D_t pnt;  
+	pnt.x = vec.v[0];  
+	pnt.y = vec.v[1];  
+	return pnt; 
+}
+
+vector2D_t Point2Vector2(point2D_t pnt, float a, float b)
+{
+	vector2D_t vec;
+	vec.v[0] = pnt.x - a;
+	vec.v[1] = pnt.y - b;
+	vec.v[2] = 1.;
+	return vec;
+}
+vector2D_t Point2Vector3(point2D_t pnt, float a, float b)
+{
+	vector2D_t vec1;
+	vec1.v[0] = a;
+	vec1.v[1] = b;
+	vec1.v[2] = 1.;
+	return vec1;
+}
+
+vector2D_t Point2Vector1(point2D_t pnt) {
+	vector2D_t vec;  
+	vec.v[0] = pnt.x;  
+	vec.v[1] = pnt.y;  
+	vec.v[2] = 1.;
+	return vec;
+}
+
+void setColor(float r, float g, float b) { 
+	glColor3f(r, g, b); 
+}
+
+void setColor(color_t col) { 
+	glColor3f(col.r, col.g, col.b); 
+}
+
+//fungsi untuk membuat titik 
+void drawDot(float x, float y) { 
+	glPointSize(3);  
+	glBegin(GL_POINTS);  
+	glVertex2f(x, y);  
+	glEnd(); 
+}
+
+//fungsi untuk membuat garis 
+void drawLine(float x1, float y1, float x2, float y2) { 
+	glBegin(GL_LINES);  
+	glVertex2f(x1, y1);  
+	glVertex2f(x2, y2);  
+	glEnd(); 
+}
+
+//fungsi yang digunakan untuk menggambar garis 
+void drawPolyline(point2D_t p[], int n) {  
+	int i;  
+	glBegin(GL_LINE_STRIP);  
+	for (i = 0; i < n; i++)   
+		glVertex2f(p[i].x, p[i].y);  
+	glEnd(); 
+}
+
+//fungsi untuk menggambar garis dengan bentuk kurva tertutup 
+void drawPolygon(point2D_t p[], int n, color_t color) {
+	int i; 
+	glBegin(GL_LINE_LOOP);  
+	for (i = 0; i < n; i++)   
+		glVertex2f(p[i].x, p[i].y);  
+	glEnd();
+}
+
+//fungsi untuk mewarnai area poligon dengan satu warna 
+void fillPolygon(point2D_t pnt[], int n, color_t color) {  
+	int i;  
+	setColor(color);  
+	glBegin(GL_POLYGON);  
+	for (i = 0; i < n; i++) {   
+		glVertex2f(pnt[i].x, pnt[i].y);  
+	}  
+	glEnd(); 
+} 
+
+//fungsi yang menghasilkan efek gradasi jika digunakan untuk mewarnai pada poligon 
+void gradatePolygon(point2D_t p[], int n, color_t col[]) {  
+	int i;  
+	glBegin(GL_POLYGON);  
+	for (i = 0; i < n; i++) {   
+		setColor(col[i]);   
+		glVertex2f(p[i].x, p[i].y);  
+	}  
+	glEnd(); 
+} 
+
+//fungsi yang menghasilkan efek gradasi jika digunakan untuk mewarnai pada lingkaran 
+void centerPolygon(point2D_t p[], point2D_t pc, color_t col, color_t colp, int n) {  
+	int i;  
+	glBegin(GL_LINES);  
+	for (i = 0; i < n; i++) {   
+		setColor(colp);   
+		glVertex2f(pc.x, pc.y);   
+		setColor(col);   
+		glVertex2f(p[i].x, p[i].y);  
+	}  
+	glEnd(); 
+} 
+
+
+// Definisi dan pengolahan matrik
+matrix2D_t createIdentity(void) { 
+	matrix2D_t u;  
+	int i, j;  
+	for (i = 0; i < 3; i++) { 
+		for (j = 0; j < 3; j++) 
+			u.m[i][j] = 0.;   
+			u.m[i][i] = 1.; 
+	}  
+	return u; 
+}
+
+// untuk membuat efek translasi(bergerak) 
+matrix2D_t translationMTX(float dx, float dy) {  
+	matrix2D_t trans = createIdentity();  
+	trans.m[0][2] = dx;  
+	trans.m[1][2] = dy;  
+	return trans; 
+} 
+
+// untuk membuat efek scaling(berubah ukuran) 
+matrix2D_t scalingMTX(float mx, float my) {  
+	matrix2D_t scale = createIdentity();  
+	scale.m[0][0] = mx;  
+	scale.m[1][1] = my;  
+	return scale; 
+} 
+
+// untuk membuat efek rotasi(berputar) 
+matrix2D_t rotationMTX(float theta) {  
+	matrix2D_t rotate = createIdentity();  
+	float cs = cos(theta);  
+	float sn = sin(theta);  
+	rotate.m[0][0] = cs; 
+	rotate.m[0][1] = -sn;  
+	rotate.m[1][0] = sn; 
+	rotate.m[1][1] = cs;  
+	return rotate; 
+} 
+
+matrix2D_t operator * (matrix2D_t a, matrix2D_t b) {
+	matrix2D_t c;//c=a*b  
+	int i, j, k;  
+	for (i = 0; i < 3; i++) 
+		for (j = 0; j < 3; j++) {   
+			c.m[i][j] = 0;   
+			for (k = 0; k < 3; k++)    
+				c.m[i][j] += a.m[i][k] * b.m[k][j];  
+		}
+	return c;
+}
+
+vector2D_t operator * (matrix2D_t a, vector2D_t b) {
+	vector2D_t c;//c=a*b  
+	int i, j;  
+	for (i = 0; i < 3; i++) {   
+		c.v[i] = 0;   
+		for (j = 0; j < 3; j++)    
+			c.v[i] += a.m[i][j] * b.v[j];  
+	}  
+	return c; 
+} 
+
+vector2D_t operator + (vector2D_t a, vector2D_t b)
+{
+	vector2D_t c;//c=a+b
+	int i, j;
+	for (i = 0; i < 3; i++) {
+		c.v[i] = 0;
+		for (j = 0; j < 3; j++)
+			c.v[i] = a.v[i] + b.v[i];
+	}
+	return c;
+}
+
+// fungsi untuk menampilkan tulisan 
+void bitmap_output(int x, int y, char *string, void *font, color_t color) {  
+	int len, i;  
+	setColor(color);  
+	glRasterPos2f(x, y);  
+	len = (int)strlen(string);  
+	for (i = 0; i < len; i++) {   
+		glutBitmapCharacter(font, string[i]);  
+	} 
+} 
+
+// fungsi yang digunakan untuk membuat ellipse 
+static void createEllipse(point2D_t p[], point2D_t p0, float r1, float r2) {  
+	for (int i = 0; i < 360; i++) {   
+		p[i].x = p0.x + r1 * cos(i / 57.3);   
+		p[i].y = p0.y + r2 * sin(i / 57.3);  
+	} 
+} 
+
+void userdraw() {
+	//backgroud yang digunakan ada 2 yaitu untuk langit(wback) dan untuk tanahnya sendiri(wback2)  
+	matrix2D_t mat;
+	vector2D_t vec,vec1;
+	static float tick, tick1, tick1_1, tick1_2, tick1_3, tick1_4, tick1_5, tick1_6, tick1_7, tick1_8, tick1_9, tick1_10, 
+		tick1_11, tick1_12, tick1_13, tick1_14, tick1_15, tick1_16, tick1_17, tick1_18,
+		tick2,tick2_1, 
+		tick3,tick3_1,tick3_2, tick3_3, 
+		tick4,tick4_1,tick4_2,tick4_3,
+		tick5, 
+		t1, t2, t3, t4, t5, temp = 0;
+	int i;
+
+	color_t hijau = { 0.61,0.90,0.35 },
+		hijau2 = { 0.38,0.89,0.45 },
+		hijau3 = { 0.36,0.68,0.27 },
+		hitam = { 0,0,0 },
+		putih = { 1,1,1 },
+		putih2 = { 1,1,0.97 },
+		kuning = { 0.97,0.94,0.14 },
+		kuning2 = { 0.97,0.76,0.17 },
+		orange = { 1.13,0.4,0.29 },
+		orange2 = { 1,0.80,0 },
+		orange3 = { 0.92,0.55,0 },
+		borange = { 0.94,0.67,0.21 },
+		bhijau = { 0.26,0.82,0.15 },
+		bbiru = { 0.2,0.64,0.85 },
+		bmerah = { 0.96,0.40,0.22 },
+		abu = { 0.32,0.36,0.4 },
+		abu2 = { 0.19,0.2,0.25 },
+		coklat = { 0.63,0.23,0.14 },
+		coklat2 = { 0.25,0.13,0.09 },
+		coklat3 = { 0.51,0.28,0.24 },
+		birumuda = { 0.50,0.69,0.96 },
+		gbiru = { 0,0.46,0.41 },
+		gbiru2 = { 0,0.53,0.48 },
+		morange[3] = { {1,0.8,0},{1,0.79,0},{0.94,0.59,0.01} },
+		borange2[3] = { {0.85,0.62,0.20},{0.87,0.61,0.20},{0.98,0.70,0.22} },
+		bhijau2[3] = { {0.23,0.67,0.13},{0.23,0.70,0.13},{0.24,0.79,0.14} },
+		bbiru2[3] = { {0.16,0.53,0.70},{0.18,0.57,0.78},{0.18,0.60,0.82} },
+		bmerah2[3] = { {0.86,0.36,0.20},{0.92,0.38,0.20},{0.96,0.41,0.21} },
+		bcoklat [4] = { {0.63,0.29,0.11},{0.63,0.29,0.10},{0.98,0.41,0.21},{0.96,0.40,0.21} },
+		ghijau[4] = { {0.74,0.87,0.45},{0.35,0.52,0.16},{0.32,0.50,0.12},{0.83,0.93,0.48} },
+		ghijau2[4] = { {0.58,0.72,0.32},{0.35,0.52,0.16},{0.32,0.50,0.12},{0.83,0.93,0.48} };
+
+	//matahari
+	point2D_t
+		matahari[360], matahari1 = { 480,284 },
+		sinar1[3] = { {475,263},{484,263},{479,249} },
+		sinar2[3] = { {475,305},{484,305},{479,319} },
+		sinar3[3] = { {459,288},{459,280},{444,284} },
+		sinar4[3] = { {500,288},{500,280},{515,284} },
+		sinar5[3] = { {462,273},{468,267},{454,259} },
+		sinar6[3] = { {462,296},{468,302},{454,309} },
+		sinar7[3] = { {497,296},{491,302},{505,309} },
+		sinar8[3] = { {491,267},{497,273},{505,259} };
+
+	createEllipse(matahari, matahari1, 15, 14);
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 360; i++) {
+		vec = Point2Vector1(matahari[i]);
+		vec1 = Point2Vector3(matahari[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		matahari[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar1[i]);
+		vec1 = Point2Vector3(sinar1[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar1[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar2[i]);
+		vec1 = Point2Vector3(sinar2[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar2[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar3[i]);
+		vec1 = Point2Vector3(sinar3[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar3[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar4[i]);
+		vec1 = Point2Vector3(sinar4[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar4[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar5[i]);
+		vec1 = Point2Vector3(sinar5[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar5[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar6[i]);
+		vec1 = Point2Vector3(sinar6[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar6[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar7[i]);
+		vec1 = Point2Vector3(sinar7[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar7[i] = Vector2Point1(vec);
+	}
+
+	mat = scalingMTX(0 - tick5, 0 - tick5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(sinar8[i]);
+		vec1 = Point2Vector3(sinar8[i], 750, 420);
+		vec = mat * vec;
+		vec = vec + vec1;
+		sinar8[i] = Vector2Point1(vec);
+	}
+
+	fillPolygon(matahari, 360, orange2);
+	gradatePolygon(sinar1, 3, morange);
+	gradatePolygon(sinar2, 3, morange);
+	gradatePolygon(sinar3, 3, morange);
+	gradatePolygon(sinar4, 3, morange);
+	gradatePolygon(sinar5, 3, morange);
+	gradatePolygon(sinar6, 3, morange);
+	gradatePolygon(sinar7, 3, morange);
+	gradatePolygon(sinar8, 3, morange);
+
+	//gunung
+	point2D_t gunung[6] = { {-300,-178},{-300,-61},{-92,47},{42,-42},{251,-119},{251,-178} },
+		gunung2[5] = { {-376,-189},{-376,-44},{-328,-14},{-200,-100},{-7,-189} },
+		gunung3[6] = { {13,-189},{250,-100},{309,-55},{385,-12},{510,-88},{510,-189} };
+
+	fillPolygon(gunung, 6, gbiru);
+	fillPolygon(gunung2, 5, gbiru2);
+	fillPolygon(gunung3, 6, gbiru2);
+
+	//lantai bawah
+	point2D_t lantai[4] = { {-500,-200},{-500,-172},{500,-172},{500,-200} };
+
+	fillPolygon(lantai, 4, hijau);
+	setColor(hitam);
+	drawPolyline(lantai, 4);
+	//rumput
+	point2D_t rumput[70] = { {-500,-172},{-500,-127},{-469,-139},{-458,-135},{-448,-139},{-421,-123},
+	{-395,-137},{-381,-135},{-370,-140},{-349,-127},{-329,-135},{-324,-143},{-313,-136},{-299,-130},{-290,-140},
+	{-277,-138},{-267,-131},{-255,-135},{-248,-143},{-236,-141},{-224,-136},{-210,-143},{-192,-135},{-180,-145},
+	{-163,-135},{-151,-139},{-134,-129},{-118,-135},{-106,-142},{-93,-135},{-81,-130},{-68,-132},{-52,-129},
+	{-37,-138},{-21,-136},{-8,-136},{8,-130},{24,-130},{44,-138},{56,-135},{70,-124},{86,-126},{98,-131},{111,-126},
+	{123,-132},{135,-134},{149,-131},{171,-127},{189,-133},{206,-130},{222,-136},{237,-133},{254,-129},{273,-132},
+	{292,-122},{317,-130},{332,-125},{345,-133},{360,-140},{371,-133},{385,-131},{395,-132},{415,-140},{433,-137},
+	{448,-133},{464,-134},{477,-129},{488,-130},{499,-134},{500,-172}};
+
+	fillPolygon(rumput, 70, hijau2);
+
+	//rumputkecil
+	point2D_t
+		rkecil2_1[3] = { {-162,-172},{-176,-136},{-152,-172} },
+		rkecil2_2[3] = { {-152,-172},{-162,-99},{-138,-172} },
+		rkecil2_3[3] = { {-138,-172},{-115,-120},{-129,-172} },
+		rkecil3_1[3] = { {295,-172},{279,-140},{302,-172} },
+		rkecil3_2[3] = { {302,-172},{295,-107},{313,-172} },
+		rkecil3_3[3] = { {313,-172},{346,-95},{325,-172} };
+
+	mat = translationMTX(0 + tick2, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil2_1[i]);
+		vec = mat * vec;
+		rkecil2_1[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil2_1, 3, hijau3);
+
+	mat = translationMTX(0 + tick2, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil2_2[i]);
+		vec = mat * vec;
+		rkecil2_2[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil2_2, 3, hijau3);
+
+	mat = translationMTX(0 + tick2, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil2_3[i]);
+		vec = mat * vec;
+		rkecil2_3[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil2_3, 3, hijau3);
+
+	mat = translationMTX(0 - tick2_1, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil3_1[i]);
+		vec = mat * vec;
+		rkecil3_1[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil3_1, 3, hijau3);
+
+	mat = translationMTX(0 - tick2_1, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil3_2[i]);
+		vec = mat * vec;
+		rkecil3_2[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil3_2, 3, hijau3);
+
+	mat = translationMTX(0 - tick2_1, 0);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(rkecil3_3[i]);
+		vec = mat * vec;
+		rkecil3_3[i] = Vector2Point1(vec);
+	}  fillPolygon(rkecil3_3, 3, hijau3);
+
+	//awan
+	point2D_t   
+		//kumpulan awan 1   
+		awan1[360], pawan1 = { -550,-95 },//l8
+		awan2[360], pawan2 = { -535,-95 },//m8
+		awan3[360], pawan3 = { -513,-100 },//n8
+		awan4[360], pawan4 = { -487,-87 },//p8
+		awan5[360], pawan5 = { -460,-100 },//o8
+		//kumpulan awan 2   
+		awan6[360], pawan6 = { 505,-31 },//s8
+		awan7[360], pawan7 = { 519,-24 },//t8
+		awan8[360], pawan8 = { 531,-35 },//u8
+		awan9[360], pawan9 = { 541,-25 },//p9
+		awan10[360], pawan10 = { 554,-22 },//s9
+		//kumpulan awan 3   
+		awan11[360], pawan11 = { -513,143 },//z9
+		awan12[360], pawan12 = { -500,143 },//a10
+		awan13[360], pawan13 = { -479,146 },//b10
+		awan14[360], pawan14 = { -459,143 },//c10
+		awan15[360], pawan15 = { -445,143 },//d10
+		//kumpulan awan 4   
+		awan16[360], pawan16 = { 567,86 },//e10
+		awan17[360], pawan17 = { 584,86 },//f10
+		awan18[360], pawan18 = { 610,90 },//g10
+		awan19[360], pawan19 = { 635,86 },//h10
+		awan20[360], pawan20 = { 652,86 };//i10
+	
+	//awan1
+	createEllipse(awan1, pawan1, 8, 8);
+	mat = translationMTX(0 + tick3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan1[i]);
+		vec = mat * vec;
+		awan1[i] = Vector2Point1(vec);
+	} fillPolygon(awan1, 360, putih2);
+
+	createEllipse(awan2, pawan2, 13, 13);
+	mat = translationMTX(0 + tick3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan2[i]);
+		vec = mat * vec;
+		awan2[i] = Vector2Point1(vec);
+	} fillPolygon(awan2, 360, putih2);
+
+	createEllipse(awan3, pawan3, 18, 18);
+	mat = translationMTX(0 + tick3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan3[i]);
+		vec = mat * vec;
+		awan3[i] = Vector2Point1(vec);
+	} fillPolygon(awan3, 360, putih2);
+
+	createEllipse(awan4, pawan4, 28, 28);
+	mat = translationMTX(0 + tick3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan4[i]);
+		vec = mat * vec;
+		awan4[i] = Vector2Point1(vec);
+	} fillPolygon(awan4, 360, putih2);
+
+	createEllipse(awan5, pawan5, 18, 18);
+	mat = translationMTX(0 + tick3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan5[i]);
+		vec = mat * vec;
+		awan5[i] = Vector2Point1(vec);
+	} fillPolygon(awan5, 360, putih2);
+
+	//awan2
+	createEllipse(awan6, pawan6, 7, 7);
+	mat = translationMTX(0 - tick3_1, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan6[i]);
+		vec = mat * vec;
+		awan6[i] = Vector2Point1(vec);
+	} fillPolygon(awan6, 360, putih2);
+
+	createEllipse(awan7, pawan7, 15, 15);
+	mat = translationMTX(0 - tick3_1, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan7[i]);
+		vec = mat * vec;
+		awan7[i] = Vector2Point1(vec);
+	} fillPolygon(awan7, 360, putih2);
+
+	createEllipse(awan8, pawan8, 7, 7);
+	mat = translationMTX(0 - tick3_1, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan8[i]);
+		vec = mat * vec;
+		awan8[i] = Vector2Point1(vec);
+	} fillPolygon(awan8, 360, putih2);
+
+	createEllipse(awan9, pawan9, 13, 13);
+	mat = translationMTX(0 - tick3_1, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan9[i]);
+		vec = mat * vec;
+		awan9[i] = Vector2Point1(vec);
+	} fillPolygon(awan9, 360, putih2);
+
+	createEllipse(awan10, pawan10, 7, 7);
+	mat = translationMTX(0 - tick3_1, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan10[i]);
+		vec = mat * vec;
+		awan10[i] = Vector2Point1(vec);
+	} fillPolygon(awan10, 360, putih2);
+
+	//awan3
+	createEllipse(awan11, pawan11, 8, 8);
+	mat = translationMTX(0 + tick3_2, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan11[i]);
+		vec = mat * vec;
+		awan11[i] = Vector2Point1(vec);
+	} fillPolygon(awan11, 360, putih2);
+
+	createEllipse(awan12, pawan12, 13, 13);
+	mat = translationMTX(0 + tick3_2, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan12[i]);
+		vec = mat * vec;
+		awan12[i] = Vector2Point1(vec);
+	} fillPolygon(awan12, 360, putih2);
+
+	createEllipse(awan13, pawan13, 18, 18);
+	mat = translationMTX(0 + tick3_2, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan13[i]);
+		vec = mat * vec;
+		awan13[i] = Vector2Point1(vec);
+	} fillPolygon(awan13, 360, putih2);
+
+	createEllipse(awan14, pawan14, 13, 13);
+	mat = translationMTX(0 + tick3_2, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan14[i]);
+		vec = mat * vec;
+		awan14[i] = Vector2Point1(vec);
+	} fillPolygon(awan14, 360, putih2);
+
+	createEllipse(awan15, pawan15, 8, 8);
+	mat = translationMTX(0 + tick3_2, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan15[i]);
+		vec = mat * vec;
+		awan15[i] = Vector2Point1(vec);
+	} fillPolygon(awan15, 360, putih2);
+
+	//awan4
+	createEllipse(awan16, pawan16, 8, 8);
+	mat = translationMTX(0 - tick3_3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan16[i]);
+		vec = mat * vec;
+		awan16[i] = Vector2Point1(vec);
+	} fillPolygon(awan16, 360, putih2);
+
+	createEllipse(awan17, pawan17, 15, 15);
+	mat = translationMTX(0 - tick3_3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan17[i]);
+		vec = mat * vec;
+		awan17[i] = Vector2Point1(vec);
+	} fillPolygon(awan17, 360, putih2);
+
+	createEllipse(awan18, pawan18, 20, 20);
+	mat = translationMTX(0 - tick3_3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan18[i]);
+		vec = mat * vec;
+		awan18[i] = Vector2Point1(vec);
+	} fillPolygon(awan18, 360, putih2);
+
+	createEllipse(awan19, pawan19, 15, 15);
+	mat = translationMTX(0 - tick3_3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan19[i]);
+		vec = mat * vec;
+		awan19[i] = Vector2Point1(vec);
+	} fillPolygon(awan19, 360, putih2);
+
+	createEllipse(awan20, pawan20, 8, 8);
+	mat = translationMTX(0 - tick3_3, 0);
+	for (i = 0; i < 360; i++)
+	{
+		vec = Point2Vector1(awan20[i]);
+		vec = mat * vec;
+		awan20[i] = Vector2Point1(vec);
+	} fillPolygon(awan20, 360, putih2);
+
+	//rumah
+	point2D_t lbawah[4] = { {-10,-162},{-10,-172},{242,-172},{242,-162} },
+		cerobong[4] = { {1,32},{1,-162},{49,-162},{49,32} },
+		cerobong2[4] = { {-2,32},{-2,52},{53,52},{53,32} },
+		dinding[4] = { {29,-162},{29,-44},{203,-44},{203,-162} },
+		dinding2[3] = { {29,-44},{203,-44},{117,19} },
+		atap[4] = { {117,19},{117,35},{13,-44},{29,-44} },
+		atap2[4] = { {117,19},{117,35},{219,-44},{203,-44} },
+		pintu[4] = { {91,-162},{91,-74},{139,-74},{139,-162} },
+		pintu2[4] = { {95,-162},{95,-78},{135,-78},{135,-162} },
+		cendela1[4] = { {39,-128},{81,-128},{81,-76},{39,-76} },
+		c1_1[4] = { {42,-125},{57,-125},{57,-105},{42,-105} },
+		c1_2[4] = { {63,-125},{78,-125},{78,-105},{63,-105} },
+		c1_3[4] = { {42,-99},{57,-99},{57,-79},{42,-79} },
+		c1_4[4] = { {63,-99},{78,-99},{78,-79},{63,-79} },
+		cendela2[4] = { {151,-128},{193,-128},{193,-76},{151,-76} },
+		fu1[4] = { {91,-55},{91,-48},{105,-48},{105,-55} },
+		fu2[4] = { {139,-55},{139,-48},{125,-48},{125,-55} },
+		fu3[4] = { {110,-55},{120,-55},{120,-48},{110,-48} };
+
+	fillPolygon(lbawah, 4, coklat2);
+	fillPolygon(cerobong, 4, abu);
+	fillPolygon(cerobong2, 4, abu);
+	fillPolygon(dinding, 4, coklat3);
+	fillPolygon(dinding2, 3, coklat3);
+	fillPolygon(atap, 4, coklat);
+	fillPolygon(atap2, 4, coklat);
+	fillPolygon(pintu, 4, putih);
+	fillPolygon(pintu2, 4, abu2);
+	fillPolygon(cendela1, 4, putih);
+	fillPolygon(c1_1, 4, bbiru);
+	fillPolygon(c1_2, 4, bbiru);
+	fillPolygon(c1_3, 4, bbiru);
+	fillPolygon(c1_4, 4, bbiru);
+	fillPolygon(cendela2, 4, putih);
+	fillPolygon(fu1, 4, hitam);
+	fillPolygon(fu2, 4, hitam);
+	fillPolygon(fu3, 4, hitam);
+
+	//baling-baling
+	point2D_t
+		tiang[4] = { {-4,0},{4,0},{4,-172},{-4,-172} },
+		baling1[3] = { {0,0},{-14,24},{10,38} },
+		baling1_2[3] = { {0,0},{10,38},{49,28} },
+		baling2[3] = { {0,0},{24,14},{38,-10} },
+		baling2_2[3] = { {0,0},{38,-10},{28,-49} },
+		baling3[3] = { {0,0},{14,-24},{-10,-38} },
+		baling3_2[3] = { {0,0},{-10,-38},{-49,-28} },
+		baling4[3] = { {0,0},{-24,-14},{-38,10} },
+		baling4_2[3] = { {0,0},{-38,10},{-28,49} };
+	
+	gradatePolygon(tiang, 4, bcoklat);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling1[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling1[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling1[i] = Vector2Point1(vec);
+	}fillPolygon(baling1, 3, borange);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling1_2[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling1_2[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling1_2[i] = Vector2Point1(vec);
+	}gradatePolygon(baling1_2, 3, borange2);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling2[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling2[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling2[i] = Vector2Point1(vec);
+	}fillPolygon(baling2, 3, bhijau);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling2_2[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling2_2[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling2_2[i] = Vector2Point1(vec);
+	}gradatePolygon(baling2_2, 3, bhijau2);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling3[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling3[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling3[i] = Vector2Point1(vec);
+	}fillPolygon(baling3, 3, bbiru);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling3_2[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling3_2[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling3_2[i] = Vector2Point1(vec);
+	}gradatePolygon(baling3_2, 3, bbiru2);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling4[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling4[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling4[i] = Vector2Point1(vec);
+	}fillPolygon(baling4, 3, bmerah);
+
+	mat = rotationMTX(0 - tick4);
+	for (i = 0; i < 3; i++)
+	{
+		vec = Point2Vector2(baling4_2[i], 0.0, 0.0);
+		vec1 = Point2Vector3(baling4_2[i], 0.0, 0.0);
+		vec = mat * vec;
+		vec = vec + vec1;
+		baling4_2[i] = Vector2Point1(vec);
+	}gradatePolygon(baling4_2, 3, bmerah2);
+
+	point2D_t
+		bbaling1[360], bbaling1_1 = { 0,0 };
+	createEllipse(bbaling1, bbaling1_1, 5, 5);
+
+	fillPolygon(bbaling1, 360, putih);
+
+
+	//rintanganbawah dan atas
+	point2D_t rbawah1[5] = { {-305,-172},{-232,-172},{-232,-81},{-305,-81},{-305,-172} },
+		rbawah1_1[5] = { {-309,-47},{-228,-47},{-228,-81},{-309,-81},{-309,-47} },
+		rbawah2[5] = { {-56,-172},{16,-172},{16,-93},{-56,-93},{-56,-172} },
+		rbawah2_1[5] = { {-60,-57},{21,-57},{21,-93},{-60,-93},{-60,-57} },
+		rbawah3[5] = { {152,-172},{225,-172},{225,-81},{152,-81},{152,-172} },
+		rbawah3_1[5] = { {147,-47},{228,-47},{228,-81},{147,-81},{147,-47} },
+		rbawah4[5] = { {401,-172},{474,-172},{474,-93},{401,-93},{401,-172} },
+		rbawah4_1[5] = { {396,-57},{478,-57},{478,-93},{396,-93},{396,-57} },
+		ratas1[5] = { {-305,210},{-232,210},{-232,143},{-305,143},{-305,210} },
+		ratas1_1[5] = { {-309,143},{-228,143},{-228,108},{-309,108},{-309,143} },
+		ratas2[5] = { {-56,210},{16,210},{16,133},{-56,133},{-56,210} },
+		ratas2_1[5] = { {-60,133},{21,133},{21,97},{-60,97},{-60,133} },
+		ratas3[5] = { {152,210},{224,210},{224,144},{152,144},{152,210} },
+		ratas3_1[5] = { {147,144},{229,144},{229,109},{147,109},{147,144} },
+		ratas4[5] = { {401,210},{474,210},{474,133},{401,133},{401,210} },
+		ratas4_1[5] = { {396,133},{478,133},{478,98},{396,98},{396,133} };
+
+	gradatePolygon(rbawah1, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(rbawah1, 5);
+	gradatePolygon(rbawah1_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(rbawah1_1, 5);
+	gradatePolygon(rbawah2, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(rbawah2, 5);
+	gradatePolygon(rbawah2_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(rbawah2_1, 5);
+	gradatePolygon(rbawah3, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(rbawah3, 5);
+	gradatePolygon(rbawah3_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(rbawah3_1, 5);
+	gradatePolygon(rbawah4, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(rbawah4, 5);
+	gradatePolygon(rbawah4_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(rbawah4_1, 5);
+	gradatePolygon(ratas1, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(ratas1, 5);
+	gradatePolygon(ratas1_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(ratas1_1, 5);
+	gradatePolygon(ratas2, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(ratas2, 5);
+	gradatePolygon(ratas2_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(ratas2_1, 5);
+	gradatePolygon(ratas3, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(ratas3, 5);
+	gradatePolygon(ratas3_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(ratas3_1, 5);
+	gradatePolygon(ratas4, 5, ghijau2);
+	setColor(hitam);
+	drawPolyline(ratas4, 5);
+	gradatePolygon(ratas4_1, 5, ghijau);
+	setColor(hitam);
+	drawPolyline(ratas4_1, 5);
+
+	//burung
+	point2D_t
+		sayap[5] = { {-492,96},{-492,93},{-488,93},{-473,93},{-473,96} },
+		sayap2[10] = { {-496,96},{-492,96},{-473,96},{-469,96},{-469,103},{-473,103},{-473,108},{-477,108},{-492,108},{-496,108} },
+		sayap3[5] = { {-492,108},{-477,108},{-477,111},{-484,111},{-492,111} },
+		badan[5] = { {-473,119},{-473,123},{-450,123},{-450,119},{-461,119} },
+		badan1[6] = { {-481,115},{-481,119},{-473,119},{-461,119},{-461,115},{-465,115} },
+		badan1_1[5] = { {-477,111},{-484,111},{-484,115},{-481,115},{-465,115} },
+		badan1_2[4] = { {-473,108},{-477,108},{-477,111},{-465,115} },
+		badan1_3[5] = { {-469,103},{-473,103},{-473,108},{-465,115},{-465,104} },
+		badan1_4[8] = { {-469,96},{-469,103},{-465,104},{-461,104},{-461,100},{-458,100},{-458,96},{-461,96} },
+		badan1_5[6] = { {-473,93},{-473,96},{-469,96},{-461,96},{-461,93},{-465,93} },
+		badan2[14] = { {-488,93},{-473,93},{-465,93},{-461,93},{-461,89},{-461,85},{-458,85},{-458,81},
+					 {-458,78},{-477,78},{-477,82},{-484,82},{-484,85},{-488,85} },
+		mata[5] = { {-461,119},{-461,115},{-447,115},{-447,119},{-450,119} },
+		mata1[8] = { {-461,115},{-465,115},{-465,104},{-461,104},{-439,100},{-443,111},{-443,115},{-447,115} },
+		mata1_1[3] = { {-439,100},{-439,111},{-443,111} },
+		mata1_2[4] = { {-461,104},{-461,100},{-458,100},{-439,100} },
+		mata2[4] = { {-451,111},{-447,111},{-447,104},{-451,104} },
+		mulut1[5] = { {-458,100},{-458,96},{-435,96},{-435,100},{-439,100} },
+		mulut1_1[11] = { {-458,96},{-461,96},{-461,93},{-461,89},{-461,85},{-458,85},{-439,85},{-435,85},{-435,89},{-435,92},{-435,96} },
+		mulut1_2[4] = { {-435,96},{-435,92},{-431,92},{-431,96} },
+		mulut1_3[4] = { {-458,85},{-458,81},{-439,81},{-439,85} },
+		mulut2[4] = { {-435,89},{-455,89},{-455,92},{-435,92} };
+		
+	//1
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick, 0 + tick);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//2
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1, 0 - tick1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//3
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 , 0 - tick1_1);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//4
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_2, 0 + tick1_2);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//5
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_3);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//6
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_4, 0 + tick1_4);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//7
+	mat = translationMTX(0 , 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_5);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//8
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_6, 0 + tick1_6);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//9
+	mat = translationMTX(0 , 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_7);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//10
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	} //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_8, 0 + tick1_8);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//11
+	mat = translationMTX(0 , 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_9);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//12
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_10, 0 + tick1_10);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//13
+	mat = translationMTX(0 , 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_11);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//14
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_12, 0 + tick1_12);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//15
+	mat = translationMTX(0 , 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_13);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//16
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_14, 0 + tick1_14);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//17
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_15);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//18
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_16, 0 + tick1_16);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//19
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  //fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  //fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0, 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 , 0 - tick1_17);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  //fillPolygon(mulut2, 4, hitam);
+
+	//20
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap[i]);
+		vec = mat * vec;
+		sayap[i] = Vector2Point1(vec);
+	}  fillPolygon(sayap, 5, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 10; i++) {
+		vec = Point2Vector1(sayap2[i]);
+		vec = mat * vec;
+		sayap2[i] = Vector2Point1(vec);
+	}  fillPolygon(sayap2, 10, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(sayap3[i]);
+		vec = mat * vec;
+		sayap3[i] = Vector2Point1(vec);
+	}  fillPolygon(sayap3, 5, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan[i]);
+		vec = mat * vec;
+		badan[i] = Vector2Point1(vec);
+	}  fillPolygon(badan, 5, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1[i]);
+		vec = mat * vec;
+		badan1[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1, 6, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_1[i]);
+		vec = mat * vec;
+		badan1_1[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1_1, 5, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(badan1_2[i]);
+		vec = mat * vec;
+		badan1_2[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1_2, 4, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(badan1_3[i]);
+		vec = mat * vec;
+		badan1_3[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1_3, 5, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(badan1_4[i]);
+		vec = mat * vec;
+		badan1_4[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1_4, 8, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 6; i++) {
+		vec = Point2Vector1(badan1_5[i]);
+		vec = mat * vec;
+		badan1_5[i] = Vector2Point1(vec);
+	}  fillPolygon(badan1_5, 6, kuning);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 14; i++) {
+		vec = Point2Vector1(badan2[i]);
+		vec = mat * vec;
+		badan2[i] = Vector2Point1(vec);
+	}  fillPolygon(badan2, 14, kuning2);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mata[i]);
+		vec = mat * vec;
+		mata[i] = Vector2Point1(vec);
+	}  fillPolygon(mata, 5, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 8; i++) {
+		vec = Point2Vector1(mata1[i]);
+		vec = mat * vec;
+		mata1[i] = Vector2Point1(vec);
+	}  fillPolygon(mata1, 8, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 3; i++) {
+		vec = Point2Vector1(mata1_1[i]);
+		vec = mat * vec;
+		mata1_1[i] = Vector2Point1(vec);
+	}  fillPolygon(mata1_1, 3, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata1_2[i]);
+		vec = mat * vec;
+		mata1_2[i] = Vector2Point1(vec);
+	}  fillPolygon(mata1_2, 4, putih);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mata2[i]);
+		vec = mat * vec;
+		mata2[i] = Vector2Point1(vec);
+	}  fillPolygon(mata2, 4, hitam);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 5; i++) {
+		vec = Point2Vector1(mulut1[i]);
+		vec = mat * vec;
+		mulut1[i] = Vector2Point1(vec);
+	}  fillPolygon(mulut1, 5, orange);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 11; i++) {
+		vec = Point2Vector1(mulut1_1[i]);
+		vec = mat * vec;
+		mulut1_1[i] = Vector2Point1(vec);
+	}  fillPolygon(mulut1_1, 11, orange);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_2[i]);
+		vec = mat * vec;
+		mulut1_2[i] = Vector2Point1(vec);
+	}  fillPolygon(mulut1_2, 4, orange);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut1_3[i]);
+		vec = mat * vec;
+		mulut1_3[i] = Vector2Point1(vec);
+	}  fillPolygon(mulut1_3, 4, orange);
+
+	mat = translationMTX(0 + tick1_18, 0 + tick1_18);
+	for (i = 0; i < 4; i++) {
+		vec = Point2Vector1(mulut2[i]);
+		vec = mat * vec;
+		mulut2[i] = Vector2Point1(vec);
+	}  fillPolygon(mulut2, 4, hitam);
+
+	//tablet
+	point2D_t tablet1[4] = { {-360,211},{-360,-200},{-373,-248},{-373,230} },
+		tablet2[4] = { {-360,209},{490,209},{501,230},{-373,230} },
+		tablet3[4] = { {490,211},{490,-200},{501,-248},{501,230} },
+		tablet4[4] = { {490,-200},{-360,-200},{-373,-248},{501,-248} },
+		tombol[9] = { {35,-215},{88,-215},{94,-221},{94,-234},{88,-240},{35,-240},{29,-234},{29,-221}, {35,-215} },
+		tombol2[5] = { {292,-221},{305,-221},{305,-234},{292,-234},{292,-221} },
+		tombol3[4] = { {-167,-221},{-167,-234},{-180,-227},{-167,-221} },
+		speaker[360], speaker1 = { 65,220 };
+
+	fillPolygon(tablet1, 4, hitam);
+	fillPolygon(tablet2, 4, hitam);
+	fillPolygon(tablet3, 4, hitam);
+	fillPolygon(tablet4, 4, hitam);
+	setColor(putih);
+	drawPolyline(tombol, 9);
+	setColor(putih);
+	drawPolyline(tombol2, 5);
+	setColor(putih);
+	drawPolyline(tombol3, 4);
+	createEllipse(speaker, speaker1, 4, 4);
+	fillPolygon(speaker, 360, putih);
+
+	tick += 0.4; // burung
+	if (tick >= 20)
+	{
+		tick = 20;
+		tick1 += 0.4;
+	}
+
+	if (tick1 >= 50)
+	{
+		tick1 = 50;
+		tick1_1 += 0.4;
+	}
+
+	if (tick1_1 >= 100)
+	{
+		tick1_1 = 100;
+		tick1_2 += 0.4;
+	}
+
+	if (tick1_2 >= 90)
+	{
+		tick1_2 = 90;
+		tick1_3 += 0.3;
+	}
+
+	if (tick1_3 >= 70)
+	{
+		tick1_3 = 70;
+		tick1_4 += 0.4;
+	}
+
+	if (tick1_4 >= 80)
+	{
+		tick1_4 = 80;
+		tick1_5 += 0.3;
+	}
+
+	if (tick1_5 >= 80)
+	{
+		tick1_5 = 80;
+		tick1_6 += 0.4;
+	}
+
+	if (tick1_6 >= 100)
+	{
+		tick1_6 = 100;
+		tick1_7 += 0.3;
+	}
+
+	if (tick1_7 >= 150)
+	{
+		tick1_7 = 150;
+		tick1_8 += 0.4;
+	}
+
+	if (tick1_8 >= 120)
+	{
+		tick1_8 = 120;
+		tick1_9 += 0.3;
+	}
+
+	if (tick1_9 >= 80)
+	{
+		tick1_9 = 80;
+		tick1_10 += 0.4;
+	}
+
+	if (tick1_10 >= 110)
+	{
+		tick1_10 = 110;
+		tick1_11 += 0.3;
+	}
+
+	if (tick1_11 >= 120)
+	{
+		tick1_11 = 120;
+		tick1_12 += 0.4;
+	}
+
+	if (tick1_12 >= 100)
+	{
+		tick1_12 = 100;
+		tick1_13 += 0.3;
+	}
+
+	if (tick1_13 >= 80)
+	{
+		tick1_13 = 80;
+		tick1_14 += 0.4;
+	}
+
+	if (tick1_14 >= 100)
+	{
+		tick1_14 = 100;
+		tick1_15 += 0.3;
+	}
+
+	if (tick1_15 >= 130)
+	{
+		tick1_15 = 130;
+		tick1_16 += 0.4;
+	}
+
+	if (tick1_16 >= 110)
+	{
+		tick1_16 = 110;
+		tick1_17 += 0.3;
+	}
+
+	if (tick1_17 >= 90)
+	{
+		tick1_17 = 90;
+		tick1_18 += 0.4;
+	}
+
+	if (tick1_18 >= 120);
+
+	tick2 += 0.2; //rumput kecil  
+	if (tick2 >= 5)
+		tick2 = 0;
+	tick2_1 += 0.2; //rumput kecil  
+	if (tick2_1 >= 5)
+		tick2_1 = 0;
+
+	tick3 += 0.2;//awan
+	if (tick3 >= 1100)
+		tick3 = 0;
+	tick3_1 += 0.09;//awan
+	if (tick3_1 >= 1100)
+		tick3_1 = 0;
+	tick3_2 += 0.3; //awan
+	if (tick3_2 >= 1100)
+		tick3_2 = 0;
+	tick3_3 += 0.2; //awan
+	if (tick3_3 >= 1100)
+		tick3_3 = 0;
+
+	tick4 += 0.03; //baling
+
+	tick5 += 0.0004; //matahari
+	if (tick5 >= 1.7)
+		tick5 = 0;
+}
+
+	void display(void) { 
+		glClear(GL_COLOR_BUFFER_BIT);  
+		userdraw();  
+		glutSwapBuffers(); 
+	}
+
+	int main(int argc, char ** argv) { 
+		glutInit(&argc, argv);  
+		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+		glutInitWindowPosition(100, 100);
+		glutInitWindowSize(1080, 600); 
+		glutCreateWindow("UAS-17051204044");
+		glClearColor(0.6, 0.8, 1.0, 0);  
+		gluOrtho2D(-373, 501, -248, 230); 
+		glutIdleFunc(display);
+		glutDisplayFunc(display);
+		glutMainLoop();
+		return 0;
+	} 
